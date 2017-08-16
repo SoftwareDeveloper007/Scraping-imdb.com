@@ -1,0 +1,3 @@
+Production status = released
+Release date = 2000 ~ 2017
+Title type = feature
