@@ -15,21 +15,27 @@ def download(url, num_retries=5):
 
     try:
         html = urlopen(url).read()
-        #print(url, 'Success')
+        # print(url, 'Success')
     except urllib.error.URLError as e:
-        #print('Download error:', e.reason)
+        # print('Download error:', e.reason)
         html = None
         if num_retries > 0:
             if hasattr(e, 'code') and 500 <= e.code < 600:
+                # print(str(e))
                 # retry 5XX HTTP errors
                 time.sleep(2)
-                html = download_html(url, num_retries - 1)
+                html = download(url, num_retries - 1)
             elif e.code == 404:
+                # print(str(e))
                 print('Page end')
                 return html
         else:
             print(url, 'Failed')
     return html
+
+
+def takeFirst(elem):
+    return elem[0]
 
 
 class main_scraper():
@@ -96,32 +102,83 @@ class main_scraper():
     def onepage_scraping(self):
         url = self.total_urls.pop()
         html = download(url)
+        time.sleep(1)
         if html is None:
             self.scraping_done = True
             self.total_urls = []
         else:
+            num = ''
+            title = ''
+            date = ''
+            budget = ''
+            filming_location = ''
+            gross = ''
+            rating = ''
+            mpaa = ''
+            genre = ''
+            director = ''
+            stars = ''
+            votes = ''
+
             soup = BeautifulSoup(html, 'html.parser')
+            time.sleep(1)
             table = soup.find("div", class_="lister-list")
             trs = table.find_all("div", class_="lister-item-content")
             for i, row in enumerate(trs):
                 try:
-                    title_line = row.find("h3", class_="lister-item-header").text.strip()
+                    h3 = row.find("h3", class_="lister-item-header")
+                    title_line = h3.text.strip()
                     title_line = title_line.split('\n')
                     num = title_line[0].strip('.')
                     title = title_line[1].strip()
-                    date = title_line[2]
+
+                    link = h3.find("a")['href']
+                    link = 'http://www.imdb.com' + link
+                    sub_html = download(link)
+                    time.sleep(1)
+                    sub_soup = BeautifulSoup(sub_html, 'html.parser')
+                    time.sleep(1)
+                    title_bar = sub_soup.find("div", class_='title_wrapper')
+                    date = title_bar.find_all('a')[-1].text.strip()
+
+                    detail = sub_soup.find("div", id="titleDetails")
+                    lines = detail.find_all("div", class_="txt-block")
+
+                    base_link = link.split('?')[0]
+
+                    for line in lines:
+                        if 'Filming Locations:' in line.text:
+                            try:
+                                location_link = base_link + line.find('span', class_='see-more').find('a')['href']
+                                sub_sub_html = download(location_link)
+                                time.sleep(1)
+                                sub_sub_soup = BeautifulSoup(sub_sub_html, 'html.parser')
+                                time.sleep(1)
+                                soda = sub_sub_soup.find_all('div', class_='soda')
+                                filming_location = []
+                                for s in soda:
+                                    filming_location.append(s.find('dt').text.strip())
+                                filming_location = ' | '.join(filming_location)
+                            except:
+                                filming_location = line.text.replace('Filming Locations:', '').strip()
+                        if 'Budget:' in line.text:
+                            budget = line.text.replace('Budget:', '').strip().split('\n')[0].strip()
+                        if 'Gross:' in line.text:
+                            gross_line = line.text.replace('Gross:', '').split('\n')
+                            gross_line.remove('')
+                            gross = []
+                            for g in gross_line:
+                                gross.append(g.strip())
+                            gross = ' '.join(gross)
+
                 except:
                     num = ''
                     title = ''
                     date = ''
-                try:
-                    certificate = row.find("span", class_="certificate").text.strip()
-                except:
-                    certificate = ''
-                try:
-                    runtime = row.find("span", class_="runtime").text.strip()
-                except:
-                    runtime = ''
+                    budget = ''
+                    filming_location = ''
+                    gross = ''
+
                 try:
                     genre = row.find("span", class_="genre").text.strip()
                 except:
@@ -130,6 +187,22 @@ class main_scraper():
                     rating = row.find("div", class_="ratings-imdb-rating").text.strip()
                 except:
                     rating = ''
+                try:
+                    mpaa = row.find("div", class_="ratings-metascore").text.strip()
+                    mpaa = mpaa.replace('Metascore', '').strip()
+                except:
+                    mpaa = ''
+                try:
+                    votes_line = row.find("p", class_="sort-num_votes-visible").text
+                    votes_line = votes_line.replace('\n', '').split('|')
+                    try:
+                        votes = re.search('Votes:(.*)', votes_line[0]).group(1).strip()
+                    except:
+                        votes = ''
+
+                except:
+                    votes = ''
+
                 try:
                     ps = row.find_all("p")
                     for j, p in enumerate(ps):
@@ -150,58 +223,29 @@ class main_scraper():
                 except:
                     director = ''
                     stars = ''
-                try:
-                    votes_line = row.find("p", class_="sort-num_votes-visible").text
-                    votes_line = votes_line.replace('\n', '').split('|')
-                    try:
-                        votes = re.search('Votes:(.*)', votes_line[0]).group(1).strip()
-                    except:
-                        votes = ''
-                    try:
-                        gross = re.search('Gross:(.*)', votes_line[1]).group(1).strip()
-                    except:
-                        gross = ''
-                except:
-                    votes = ''
-                    gross = ''
 
-                self.cnt += 1
-                txt = "--------------------------------------------------------------------------------------------------------------------" + \
-                      "------------------------------------------------------------------------------------------\n" + \
-                      "No | Title | Date | Certificate | Runtime | Genre | Rating | Director | Stars | Votes | Gross\n" + \
-                      "{0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10}\n{11}\n".format(num, title, date, certificate, runtime, genre, rating, director, stars, votes, gross, self.cnt)
-                print(txt)
+                logTxt = "No:\t\t\t{0}\nTitle:\t\t{1}\nRating:\t\t{2}\nMPAA:\t\t{3}\nGenre:\t\t{4}\nDirector:\t{5}\n" \
+                         "Stars:\t\t{6}\nVotes:\t\t{7}\nGross:\t\t{8}\nDate:\t\t{9}\nBudget:\t\t{10}\nLocation:\t{11}\n".\
+                    format(num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location)
 
-
-                #self.writer.writerow([num, title, date, certificate, runtime, genre, rating, director, stars, votes, gross])
-
-                self.total_data.append({
-                    'no': num,
-                    'title': title,
-                    'date': date,
-                    'certificate': certificate,
-                    'runtime': runtime,
-                    'genre': genre,
-                    'rating': rating,
-                    'director': director,
-                    'stars': stars,
-                    'votes': votes,
-                    'gross': gross
-                })
-
+                print(logTxt)
+                self.total_data.append([
+                    num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location
+                ])
 
     def save_csv(self):
-        print("\n=====================================================================================================================================================================\n")
+        print(
+            "\n=====================================================================================================================================================================\n")
         print('Saving data into CSV')
         output = open('result.csv', 'w', encoding='utf-8', newline='')
         self.writer = csv.writer(output)
-        headers = ['No', 'Title', 'Release Date', 'Certificate', 'Runtime', 'Genre', 'Rating', 'Director', 'Stars', 'Votes',
-                   'Gross']
+        headers = ['No', 'Title', 'Rating', 'MPAA', 'Genre', 'Director', 'Stars', 'Votes', 'Gross', 'Release Date',
+                   'Budget', 'Filming Location']
         self.writer.writerow(headers)
 
+        self.total_data.sort(key=takeFirst)
         for i, row in enumerate(self.total_data):
-            self.writer.writerow([row['no'], row['title'], row['date'], row['certificate'], row['runtime'], row['genre'],
-                                  row['rating'], row['director'], row['stars'], row['votes'], row['gross']])
+            self.writer.writerow(row)
         output.close()
 
 
@@ -214,3 +258,4 @@ if __name__ == '__main__':
     app.save_csv()
 
     elapsed_time = time.time() - start_time
+    print(elapsed_time)
