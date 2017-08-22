@@ -7,3 +7,6 @@ Scraping imdb.com
 <br>
 <p>In the script, multiple threading is used for fast scraping. </p>
 
+<h1>Installation</h1>
+<p>You need to install Anaconda3 in order to run the script</p>
+<p>You can change config settings in 'config.txt'.</p>
