@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import re, csv, threading, time
 
+
 def download(url, num_retries=5):
     """Download function that also retries 5XX errors"""
 
@@ -69,6 +70,12 @@ class main_scraper():
         self.scraping_done = False
         self.cnt = 0
 
+        self.output = open('result.csv', 'w', encoding='utf-8', newline='')
+        self.writer = csv.writer(self.output)
+        headers = ['No', 'Title', 'Rating', 'MPAA', 'Genre', 'Director', 'Stars', 'Votes', 'Gross', 'Release Date',
+                   'Budget', 'Filming Location', 'Minutes', 'Language', 'Country', 'Keywords']
+        self.writer.writerow(headers)
+
     def url_generation(self):
 
         for i in range(1000):
@@ -94,6 +101,7 @@ class main_scraper():
                 self.threads.append(thread)
 
         print('\nScraping completed Successfully!!!')
+        self.output.close()
 
     def onepage_scraping(self):
         url = self.total_urls.pop()
@@ -115,6 +123,10 @@ class main_scraper():
             director = ''
             stars = ''
             votes = ''
+            runtime = ''
+            language = ''
+            country = ''
+            keywords = ''
 
             try:
                 soup = BeautifulSoup(html, 'html.parser')
@@ -122,7 +134,7 @@ class main_scraper():
                 table = soup.find("div", class_="lister-list")
                 trs = table.find_all("div", class_="lister-item-content")
                 for i, row in enumerate(trs):
-                    #try:
+                    # try:
                     h3 = row.find("h3", class_="lister-item-header")
                     title_line = h3.text.strip()
                     title_line = title_line.split('\n')
@@ -168,15 +180,32 @@ class main_scraper():
                                 for g in gross_line:
                                     gross.append(g.strip())
                                 gross = ' '.join(gross)
-
+                            if 'Language:' in line.text:
+                                language = line.text.replace('Language:', '').strip().split('\n')[0].strip()
+                            if 'Country:' in line.text:
+                                country = line.text.replace('Country:', '').strip().split('\n')[0].strip()
 
                     except:
                         date = ''
                         budget = ''
                         filming_location = ''
                         gross = ''
+                        runtime = ''
+                        language = ''
+                        country = ''
 
+                    try:
+                        tmp = []
+                        keywords_line = sub_soup.find('div', itemprop = 'keywords').text.split('\n')
+                        for elm in keywords_line:
+                           if elm is '' or 'Plot Keywords:' in elm or '|'in elm:
+                               continue
+                           else:
+                               tmp.append(elm.strip())
+                        keywords = ' | '.join(tmp)
 
+                    except:
+                        keywords = ''
                     try:
                         genre = row.find("span", class_="genre").text.strip()
                     except:
@@ -186,10 +215,13 @@ class main_scraper():
                     except:
                         rating = ''
                     try:
-                        mpaa = row.find("div", class_="ratings-metascore").text.strip()
-                        mpaa = mpaa.replace('Metascore', '').strip()
+                        mpaa = row.find("span", class_="certificate").text.strip()
                     except:
                         mpaa = ''
+                    try:
+                        runtime = row.find("span", class_="runtime").text.strip()
+                    except:
+                        runtime = ''
                     try:
                         votes_line = row.find("p", class_="sort-num_votes-visible").text
                         votes_line = votes_line.replace('\n', '').split('|')
@@ -223,12 +255,20 @@ class main_scraper():
                         stars = ''
 
                     logTxt = "No:\t\t\t{0}\nTitle:\t\t{1}\nRating:\t\t{2}\nMPAA:\t\t{3}\nGenre:\t\t{4}\nDirector:\t{5}\n" \
-                             "Stars:\t\t{6}\nVotes:\t\t{7}\nGross:\t\t{8}\nDate:\t\t{9}\nBudget:\t\t{10}\nLocation:\t{11}\n".\
-                        format(num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location)
+                             "Stars:\t\t{6}\nVotes:\t\t{7}\nGross:\t\t{8}\nDate:\t\t{9}\nBudget:\t\t{10}\nLocation:\t{11}\n" \
+                             "Minutes:\t{12}\nLanguage:\t{13}\nCountry:\t{14}\nKeywords:\t{15}\n". \
+                        format(num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget,
+                               filming_location,
+                               runtime, language, country, keywords)
 
                     print(logTxt)
                     self.total_data.append([
-                        num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location
+                        num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location,
+                        runtime, language, country, keywords
+                    ])
+                    self.writer.writerow([
+                        num, title, rating, mpaa, genre, director, stars, votes, gross, date, budget, filming_location,
+                        runtime, language, country, keywords
                     ])
             except:
                 self.total_urls = []
@@ -240,7 +280,7 @@ class main_scraper():
         output = open('result.csv', 'w', encoding='utf-8', newline='')
         self.writer = csv.writer(output)
         headers = ['No', 'Title', 'Rating', 'MPAA', 'Genre', 'Director', 'Stars', 'Votes', 'Gross', 'Release Date',
-                   'Budget', 'Filming Location']
+                   'Budget', 'Filming Location', 'Minutes', 'Language', 'Country', 'Keywords']
         self.writer.writerow(headers)
 
         self.total_data.sort(key=takeFirst)
@@ -255,7 +295,7 @@ if __name__ == '__main__':
     app.url_generation()
     app.start_scraping()
     # app.onepage_scraping()
-    app.save_csv()
+    # app.save_csv()
 
     elapsed_time = time.time() - start_time
     print(elapsed_time)
